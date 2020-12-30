@@ -13,13 +13,14 @@ import (
 )
 
 type Option struct {
-	spID     string
-	idpID    string
-	Duration int64
-	ListRole bool
-	SamlFile string
-	NoCache  bool
-	RoleArn  string
+	spID             string
+	idpID            string
+	Duration         int64
+	ListRole         bool
+	SamlFile         string
+	NoCache          bool
+	RoleArn          string
+	GetSamlAssertion bool
 }
 
 func parseOption(c *cli.Context) (*Option, error) {
@@ -31,6 +32,8 @@ func parseOption(c *cli.Context) (*Option, error) {
 	opt.ListRole = c.Bool("list-roles")
 	opt.SamlFile = c.String("saml-file")
 	opt.NoCache = c.Bool("no-cache")
+	opt.GetSamlAssertion = c.Bool("get-saml-assertion")
+
 	if c.IsSet("role-arn") {
 		opt.RoleArn = c.String("role-arn")
 	}
@@ -76,6 +79,10 @@ func handler(c *cli.Context) error {
 		assertion, err = g.Login()
 		if err != nil {
 			return err
+		}
+		if opt.GetSamlAssertion {
+			fmt.Println(assertion)
+			return nil
 		}
 		writeSamlAssertion(opt.SamlFile, assertion)
 	}
@@ -196,11 +203,16 @@ func main() {
 		&cli.StringFlag{
 			Name:  "saml-file",
 			Usage: "Path to file contains SAML Assertion",
-			Value: "~/.awssaml_cache.cfg",
+			Value: "~/.aws_google_login_cache.txt",
 		},
 		&cli.BoolFlag{
 			Name:  "no-cache",
 			Usage: "Force to re-authenticate",
+			Value: false,
+		},
+		&cli.BoolFlag{
+			Name:  "get-saml-assertion",
+			Usage: "Getting SAML assertion XML",
 			Value: false,
 		},
 	}
