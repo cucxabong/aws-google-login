@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -59,4 +61,15 @@ func GetRoleArnFromSAMLRole(samlRole string) string {
 // and return the second part of the input (a valid AWS IAM Provider ARN)
 func GetPrincipalArnFromSAMLRole(samlRole string) string {
 	return getArnFromSamlRoleAttribute(samlRole, 1)
+}
+
+// NormalizePath ...
+func NormalizePath(path string) string {
+	homeDir, _ := os.UserHomeDir()
+
+	if strings.HasPrefix(path, "~/") {
+		path = filepath.Join(homeDir, path[2:])
+	}
+
+	return path
 }

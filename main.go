@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
-	"strings"
 	"text/template"
 
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -38,13 +36,7 @@ func parseOption(c *cli.Context) (*Option, error) {
 		opt.RoleArn = c.String("role-arn")
 	}
 
-	if strings.HasPrefix(opt.SamlFile, "~/") {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return nil, err
-		}
-		opt.SamlFile = filepath.Join(homeDir, strings.TrimPrefix(opt.SamlFile, "~/"))
-	}
+	opt.SamlFile = NormalizePath(opt.SamlFile)
 
 	return opt, nil
 }
