@@ -6,6 +6,8 @@ import (
 	"os"
 	"text/template"
 
+	"encoding/json"
+
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/urfave/cli/v2"
 )
@@ -97,30 +99,17 @@ func printExportline(stsCred *sts.Credentials) error {
 	return t.Execute(os.Stdout, stsCred)
 }
 
-func GetAssociatedRoles(amz *Amazon) ([]string, error) {
-	resp := []string{}
-	samlRoles, err := GetAttributeValuesFromAssertion(amz.GetAssertion(), amz.GetRoleAttrName())
-	if err != nil {
-		return resp, err
-	}
-
-	for _, v := range samlRoles {
-		resp = append(resp, GetRoleArnFromSAMLRole(v))
-	}
-
-	return resp, nil
-}
-
 func assumeSingleRoleHandler(amz *Amazon, roleArn string) error {
 	var principalArn string
-	samlRoles, err := GetAttributeValuesFromAssertion(amz.GetAssertion(), amz.GetRoleAttrName())
+	roles, err := amz.ParseRoles()
 	if err != nil {
 		return err
 	}
 
-	for _, v := range samlRoles {
-		if roleArn == GetRoleArnFromSAMLRole(v) {
-			principalArn = GetPrincipalArnFromSAMLRole(v)
+	for _, v := range roles {
+		if roleArn == v.RoleArn {
+			principalArn = v.PrincipalArn
+			break
 		}
 	}
 
@@ -143,13 +132,17 @@ func assumeSingleRoleHandler(amz *Amazon, roleArn string) error {
 }
 
 func listRolesHandler(amz *Amazon) error {
-	roles, err := GetAssociatedRoles(amz)
+	roles, err := amz.ParseRoles()
 	if err != nil {
 		return err
 	}
-	for _, v := range roles {
-		fmt.Println(v)
+
+	jsonData, err := json.Marshal(roles)
+	if err != nil {
+		return err
 	}
+
+	fmt.Println(string(jsonData))
 
 	return nil
 }

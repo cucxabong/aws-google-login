@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -15,6 +16,15 @@ type Amazon struct {
 	SessionDuration int64
 }
 
+type Role struct {
+	RoleArn      string `json:"role_arn"`
+	PrincipalArn string `json:"principal_arn"`
+}
+
+func (r *Role) String() string {
+	return r.RoleArn
+}
+
 func NewAmazonConfig(samlAssertion string, sessionDuration int64) *Amazon {
 	return &Amazon{
 		SamlAssertion:   samlAssertion,
@@ -24,6 +34,37 @@ func NewAmazonConfig(samlAssertion string, sessionDuration int64) *Amazon {
 
 func (amz *Amazon) GetAssertion() string {
 	return amz.SamlAssertion
+}
+
+func (amz *Amazon) parseRole(role string) (*Role, error) {
+	items := strings.Split(role, ",")
+	if len(items) != 2 {
+		return nil, fmt.Errorf("invalid role string %v\n", role)
+	}
+
+	return &Role{
+		RoleArn:      items[0],
+		PrincipalArn: items[1],
+	}, nil
+}
+
+func (amz *Amazon) ParseRoles() ([]*Role, error) {
+	resp := []*Role{}
+	roleValues, err := GetAttributeValuesFromAssertion(amz.GetAssertion(), amz.GetRoleAttrName())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, v := range roleValues {
+		role, err := amz.parseRole(v)
+		if err != nil {
+			return nil, err
+		}
+
+		resp = append(resp, role)
+	}
+
+	return resp, nil
 }
 
 // GetRoleAttrName return XML attribute name for Role property

@@ -5,18 +5,18 @@ import (
 )
 
 func interactiveAssumeRole(amz *Amazon) error {
-	roles, err := GetAssociatedRoles(amz)
+	roles, err := amz.ParseRoles()
 	if err != nil {
 		return err
 	}
 	if len(roles) == 1 {
-		return assumeSingleRoleHandler(amz, roles[0])
+		return assumeSingleRoleHandler(amz, roles[0].RoleArn)
 	}
 
 	templates := promptui.SelectTemplates{
-		Active:   `🔐 {{ . | cyan | bold }}`,
-		Inactive: `   {{ . | cyan }}`,
-		Selected: `{{ "✔" | green | bold }} {{ "Assuming to" | bold }}: {{ . | cyan }}`,
+		Active:   `🔐 {{ .RoleArn | cyan | bold }}`,
+		Inactive: `   {{ .RoleArn | cyan }}`,
+		Selected: `{{ "✔" | green | bold }} {{ "Assuming to" | bold }}: {{ .RoleArn | cyan }}`,
 	}
 
 	list := promptui.Select{

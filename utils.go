@@ -47,23 +47,6 @@ func GetAttributeValuesFromAssertion(assertion, attributeName string) ([]string,
 	return parsedSaml.GetAttributeValues(attributeName), nil
 }
 
-func getArnFromSamlRoleAttribute(samlRole string, idx uint) string {
-	return strings.Trim(strings.Split(samlRole, ",")[idx], " ")
-}
-
-// GetRoleArnFromSAMLRole pase a SAML role string in form of "[ROLE_ARN],[PROVIDER_ARN]"
-// and return the first part of the input (a valid AWS IAM Role ARN)
-func GetRoleArnFromSAMLRole(samlRole string) string {
-	return getArnFromSamlRoleAttribute(samlRole, 0)
-}
-
-// GetRoleArnFromSAMLRole pase a SAML role string in form of "[ROLE_ARN],[PROVIDER_ARN]"
-// and return the second part of the input (a valid AWS IAM Provider ARN)
-func GetPrincipalArnFromSAMLRole(samlRole string) string {
-	return getArnFromSamlRoleAttribute(samlRole, 1)
-}
-
-// NormalizePath ...
 func NormalizePath(path string) string {
 	homeDir, _ := os.UserHomeDir()
 
