@@ -21,6 +21,7 @@ type Option struct {
 	NoCache          bool
 	RoleArn          string
 	GetSamlAssertion bool
+	Export           bool
 }
 
 func parseOption(c *cli.Context) (*Option, error) {
@@ -33,7 +34,7 @@ func parseOption(c *cli.Context) (*Option, error) {
 	opt.SamlFile = c.String("saml-file")
 	opt.NoCache = c.Bool("no-cache")
 	opt.GetSamlAssertion = c.Bool("get-saml-assertion")
-
+	opt.Export = c.Bool("export")
 	if c.IsSet("role-arn") {
 		opt.RoleArn = c.String("role-arn")
 	}
@@ -48,7 +49,7 @@ func writeSamlAssertion(filename, assertion string) error {
 }
 
 func handler(c *cli.Context) error {
-	var roleArn, assertion string
+	var assertion string
 	var err error
 	opt, err := parseOption(c)
 	if err != nil {
@@ -87,11 +88,11 @@ func handler(c *cli.Context) error {
 		return listRolesHandler(amz)
 	}
 
-	if roleArn != "" {
-		return assumeSingleRoleHandler(amz, roleArn)
+	if opt.RoleArn != "" {
+		return assumeSingleRoleHandler(amz, opt.RoleArn, opt.Export)
 	}
 
-	return interactiveAssumeRole(amz)
+	return interactiveAssumeRole(amz, opt.Export)
 }
 
 func printExportline(stsCred *sts.Credentials) error {
@@ -99,7 +100,7 @@ func printExportline(stsCred *sts.Credentials) error {
 	return t.Execute(os.Stdout, stsCred)
 }
 
-func assumeSingleRoleHandler(amz *Amazon, roleArn string) error {
+func assumeSingleRoleHandler(amz *Amazon, roleArn string, export bool) error {
 	var principalArn string
 	roles, err := amz.ParseRoles()
 	if err != nil {
@@ -122,11 +123,23 @@ func assumeSingleRoleHandler(amz *Amazon, roleArn string) error {
 	if err != nil {
 		return err
 	}
-	err = printExportline(stsCreds)
-	if err != nil {
-		return fmt.Errorf("unable to render export line %v", err)
+
+	if export {
+		err = printExportline(stsCreds)
+		if err != nil {
+			return fmt.Errorf("unable to render export line %v", err)
+		}
+		fmt.Printf("Credentials Expiration: %q\n", stsCreds.Expiration.String())
+		return nil
 	}
-	fmt.Printf("Credentials Expiration: %q\n", stsCreds.Expiration.String())
+
+	// JSON output to stdout
+	jsonData, err := json.Marshal(stsCreds)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(jsonData))
 
 	return nil
 }
@@ -198,6 +211,11 @@ func main() {
 		&cli.BoolFlag{
 			Name:  "get-saml-assertion",
 			Usage: "Getting SAML assertion XML",
+			Value: false,
+		},
+		&cli.BoolFlag{
+			Name:  "export",
+			Usage: "Print export line for working with aws cli",
 			Value: false,
 		},
 	}

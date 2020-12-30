@@ -4,13 +4,14 @@ import (
 	"github.com/manifoldco/promptui"
 )
 
-func interactiveAssumeRole(amz *Amazon) error {
+func interactiveAssumeRole(amz *Amazon, export bool) error {
+
 	roles, err := amz.ParseRoles()
 	if err != nil {
 		return err
 	}
 	if len(roles) == 1 {
-		return assumeSingleRoleHandler(amz, roles[0].RoleArn)
+		return assumeSingleRoleHandler(amz, roles[0].RoleArn, export)
 	}
 
 	templates := promptui.SelectTemplates{
@@ -31,5 +32,5 @@ func interactiveAssumeRole(amz *Amazon) error {
 		panic(err)
 	}
 
-	return assumeSingleRoleHandler(amz, selected)
+	return assumeSingleRoleHandler(amz, selected, export)
 }
