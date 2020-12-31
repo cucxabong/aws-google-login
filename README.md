@@ -32,7 +32,9 @@ GLOBAL OPTIONS:
    --sp-id value, -s value     Google SSO SP identifier [$GOOGLE_SP_ID]
    --idp-id value, -i value    Google SP identifier [$GOOGLE_IDP_ID]
    --role-arn value, -r value  AWS Role Arn for assuming to
-   --saml-file value           Path to file contains SAML Assertion (default: "~/.aws_google_login_cache.cfg")
+   --saml-file value           Path to file contains SAML Assertion (default: "~/.aws_google_login_cache.txt")
    --no-cache                  Force to re-authenticate (default: false)
+   --get-saml-assertion        Getting SAML assertion XML (default: false)
+   --export                    Print export line for working with aws cli (default: false)
    --help, -h                  show help (default: false)
 ```
