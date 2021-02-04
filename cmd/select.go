@@ -1,10 +1,11 @@
 package main
 
 import (
+	awslogin "github.com/cucxabong/aws-google-login"
 	"github.com/manifoldco/promptui"
 )
 
-func interactiveAssumeRole(amz *Amazon, export bool) error {
+func interactiveAssumeRole(amz *awslogin.Amazon, export bool) error {
 
 	roles, err := amz.ParseRoles()
 	if err != nil {

@@ -3,8 +3,6 @@ What's this
 This command-line tool allows you to acquire AWS temporary (STS) credentials using Google Apps as a federated (Single Sign-On, or SSO) provider. This project was inspired from [aws-google-auth](https://github.com/cevoaustralia/aws-google-auth)
  and the help of [playwright-go](https://github.com/mxschmitt/playwright-go) for the interactive Graphic User Interface (GUI)
 
-![authenticate](docs/demo.gif)
-
 Features
 ===============
 - Interactive Authentication
