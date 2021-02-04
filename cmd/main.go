@@ -8,6 +8,8 @@ import (
 
 	"encoding/json"
 
+	awslogin "github.com/cucxabong/aws-google-login"
+
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/urfave/cli/v2"
 )
@@ -39,7 +41,7 @@ func parseOption(c *cli.Context) (*Option, error) {
 		opt.RoleArn = c.String("role-arn")
 	}
 
-	opt.SamlFile = NormalizePath(opt.SamlFile)
+	opt.SamlFile = awslogin.NormalizePath(opt.SamlFile)
 
 	return opt, nil
 }
@@ -63,14 +65,14 @@ func handler(c *cli.Context) error {
 			if err != nil {
 				return err
 			}
-			if IsValidSamlAssertion(string(data)) {
+			if awslogin.IsValidSamlAssertion(string(data)) {
 				assertion = string(data)
 			}
 		}
 	}
 
 	if assertion == "" {
-		g := NewGoogleConfig(opt.idpID, opt.spID)
+		g := awslogin.NewGoogleConfig(opt.idpID, opt.spID)
 		assertion, err = g.Login()
 		if err != nil {
 			return err
@@ -82,7 +84,7 @@ func handler(c *cli.Context) error {
 		writeSamlAssertion(opt.SamlFile, assertion)
 	}
 
-	amz := NewAmazonConfig(assertion, opt.Duration)
+	amz := awslogin.NewAmazonConfig(assertion, opt.Duration)
 
 	if opt.ListRole {
 		return listRolesHandler(amz)
@@ -100,7 +102,7 @@ func printExportline(stsCred *sts.Credentials) error {
 	return t.Execute(os.Stdout, stsCred)
 }
 
-func assumeSingleRoleHandler(amz *Amazon, roleArn string, export bool) error {
+func assumeSingleRoleHandler(amz *awslogin.Amazon, roleArn string, export bool) error {
 	var principalArn string
 	roles, err := amz.ParseRoles()
 	if err != nil {
@@ -144,7 +146,7 @@ func assumeSingleRoleHandler(amz *Amazon, roleArn string, export bool) error {
 	return nil
 }
 
-func listRolesHandler(amz *Amazon) error {
+func listRolesHandler(amz *awslogin.Amazon) error {
 	roles, err := amz.ParseRoles()
 	if err != nil {
 		return err
@@ -177,7 +179,7 @@ func main() {
 			Name:    "duration",
 			Aliases: []string{"d"},
 			Usage:   "Session Duration which is used to assume to a role",
-			Value:   DEFAULT_SESSION_DURATION,
+			Value:   awslogin.DEFAULT_SESSION_DURATION,
 		},
 		&cli.StringFlag{
 			Name:     "sp-id",
