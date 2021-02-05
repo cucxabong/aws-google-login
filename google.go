@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"path/filepath"
+
+	"os"
 
 	"github.com/mxschmitt/playwright-go"
 )
@@ -37,8 +40,15 @@ func (g *Google) Login() (string, error) {
 		return SAMLResponse, fmt.Errorf("unable to run playwright %v", err)
 	}
 
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	path := filepath.Join(homedir, "Library/Caches/ms-playwright/chromium-833159/chrome-mac/Chromium.app/Contents/MacOS/Chromium")
 	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(false),
+		Headless:       playwright.Bool(false),
+		ExecutablePath: &path,
 	})
 	if err != nil {
 		return SAMLResponse, fmt.Errorf("could not launch a browser %v", err)

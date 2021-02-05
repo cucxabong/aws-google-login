@@ -82,7 +82,7 @@ func (*Amazon) GetSessionDurationAttrName() string {
 	return "https://aws.amazon.com/SAML/Attributes/SessionDuration"
 }
 
-// AssumeRole is going to call sts.AssumeRoleWithSAMLInput to assume to a specific role
+// AssumeRole is going to call sts.AssumeRoleWithSAML to assume to a specific role
 func (amz *Amazon) AssumeRole(roleArn, principalArn string) (*sts.Credentials, error) {
 	svc := sts.New(session.New())
 	input := &sts.AssumeRoleWithSAMLInput{
