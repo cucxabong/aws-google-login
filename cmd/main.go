@@ -1,112 +1,106 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
-	"os"
-	"text/template"
-
 	"encoding/json"
-
-	awslogin "github.com/cucxabong/aws-google-login"
+	"fmt"
+	"io"
+	"os"
 
 	"github.com/aws/aws-sdk-go/service/sts"
+	awslogin "github.com/cucxabong/aws-google-login"
 	"github.com/urfave/cli/v2"
 )
 
-type Option struct {
-	spID             string
-	idpID            string
-	Duration         int64
-	ListRole         bool
-	SamlFile         string
-	NoCache          bool
-	RoleArn          string
-	GetSamlAssertion bool
-	Export           bool
+type Options struct {
+	ServiceProviderID  string
+	IdentityProviderID string
+	DurationSeconds    int
+	RoleName           string
+	AccountIDs         []string
+	SamlAssertion      bool
 }
 
-func parseOption(c *cli.Context) (*Option, error) {
-	opt := &Option{}
+type CredentialsData struct {
+	*sts.Credentials
+	AccountId string
+	RoleArn   string
+}
 
-	opt.spID = c.String("sp-id")
-	opt.idpID = c.String("idp-id")
-	opt.Duration = c.Int64("duration")
-	opt.ListRole = c.Bool("list-roles")
-	opt.SamlFile = c.String("saml-file")
-	opt.NoCache = c.Bool("no-cache")
-	opt.GetSamlAssertion = c.Bool("get-saml-assertion")
-	opt.Export = c.Bool("export")
-	if c.IsSet("role-arn") {
-		opt.RoleArn = c.String("role-arn")
+func NewOptions(c *cli.Context) *Options {
+	return &Options{
+		ServiceProviderID:  c.String("sp-id"),
+		IdentityProviderID: c.String("idp-id"),
+		DurationSeconds:    c.Int("duration-seconds"),
+		RoleName:           c.String("role-name"),
+		AccountIDs:         c.StringSlice("account-ids"),
+		SamlAssertion:      c.Bool("get-saml-assertion"),
 	}
-
-	opt.SamlFile = awslogin.NormalizePath(opt.SamlFile)
-
-	return opt, nil
 }
 
-func writeSamlAssertion(filename, assertion string) error {
-	return ioutil.WriteFile(filename, []byte(assertion), 0600)
+func GetRoleArn(accountID string, roleName string) string {
+	return fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, roleName)
+}
+
+func JSONWrite(w io.Writer, data []CredentialsData) error {
+	for _, item := range data {
+		jsonData, err := json.Marshal(item)
+		if err != nil {
+			return err
+		}
+
+		if _, err = fmt.Fprintln(w, string(jsonData)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func handler(c *cli.Context) error {
 	var assertion string
 	var err error
-	opt, err := parseOption(c)
+	opt := NewOptions(c)
 	if err != nil {
 		return err
 	}
 
-	if !opt.NoCache {
-		if _, err := os.Stat(opt.SamlFile); err == nil {
-			// Read assertion from file
-			data, err := ioutil.ReadFile(opt.SamlFile)
-			if err != nil {
-				return err
-			}
-			if awslogin.IsValidSamlAssertion(string(data)) {
-				assertion = string(data)
-			}
-		}
+	g := awslogin.NewGoogleConfig(opt.IdentityProviderID, opt.ServiceProviderID)
+	assertion, err = g.Login()
+	if err != nil {
+		return err
 	}
 
-	if assertion == "" {
-		g := awslogin.NewGoogleConfig(opt.idpID, opt.spID)
-		assertion, err = g.Login()
+	if opt.SamlAssertion {
+		_, err := fmt.Println(assertion)
+		return err
+	}
+
+	amz := awslogin.NewAmazonConfig(assertion, int64(opt.DurationSeconds))
+
+	creds := make([]CredentialsData, len(opt.AccountIDs))
+
+	for idx, accountID := range opt.AccountIDs {
+		roleArn := GetRoleArn(accountID, opt.RoleName)
+		s, err := AssumeRole(amz, roleArn)
 		if err != nil {
 			return err
 		}
-		if opt.GetSamlAssertion {
-			fmt.Println(assertion)
-			return nil
+
+		creds[idx] = CredentialsData{
+			Credentials: s,
+			AccountId:   accountID,
+			RoleArn:     roleArn,
 		}
-		writeSamlAssertion(opt.SamlFile, assertion)
 	}
 
-	amz := awslogin.NewAmazonConfig(assertion, opt.Duration)
-
-	if opt.ListRole {
-		return listRolesHandler(amz)
-	}
-
-	if opt.RoleArn != "" {
-		return assumeSingleRoleHandler(amz, opt.RoleArn, opt.Export)
-	}
-
-	return interactiveAssumeRole(amz, opt.Export)
+	JSONWrite(os.Stdout, creds)
+	return nil
 }
 
-func printExportline(stsCred *sts.Credentials) error {
-	t := template.Must(template.New("aws-export-line").Parse(AWS_CREDS_EXPORT_TEMPLATE))
-	return t.Execute(os.Stdout, stsCred)
-}
-
-func assumeSingleRoleHandler(amz *awslogin.Amazon, roleArn string, export bool) error {
+func AssumeRole(amz *awslogin.Amazon, roleArn string) (*sts.Credentials, error) {
 	var principalArn string
 	roles, err := amz.ParseRoles()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, v := range roles {
@@ -116,50 +110,12 @@ func assumeSingleRoleHandler(amz *awslogin.Amazon, roleArn string, export bool) 
 		}
 	}
 
-	// The role user specified not be configured for user account
 	if principalArn == "" {
-		return fmt.Errorf("role is not configured for your user")
+		fmt.Println(roleArn, roles)
+		return nil, fmt.Errorf("role is not configured for your user")
 	}
 
-	stsCreds, err := amz.AssumeRole(roleArn, principalArn)
-	if err != nil {
-		return err
-	}
-
-	if export {
-		err = printExportline(stsCreds)
-		if err != nil {
-			return fmt.Errorf("unable to render export line %v", err)
-		}
-		fmt.Printf("Credentials Expiration: %q\n", stsCreds.Expiration.String())
-		return nil
-	}
-
-	// JSON output to stdout
-	jsonData, err := json.Marshal(stsCreds)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(jsonData))
-
-	return nil
-}
-
-func listRolesHandler(amz *awslogin.Amazon) error {
-	roles, err := amz.ParseRoles()
-	if err != nil {
-		return err
-	}
-
-	jsonData, err := json.Marshal(roles)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(jsonData))
-
-	return nil
+	return amz.AssumeRole(roleArn, principalArn)
 }
 
 func main() {
@@ -169,55 +125,41 @@ func main() {
 		Action: handler,
 	}
 	app.Flags = []cli.Flag{
-		&cli.BoolFlag{
-			Name:    "list-roles",
-			Aliases: []string{"l"},
-			Usage:   "Listing AWS Role(s) were associated with (authenticated) user",
-			Value:   false,
-		},
-		&cli.Int64Flag{
-			Name:    "duration",
+		&cli.IntFlag{
+			Name:    "duration-seconds",
 			Aliases: []string{"d"},
-			Usage:   "Session Duration which is used to assume to a role",
-			Value:   awslogin.DEFAULT_SESSION_DURATION,
+			Usage:   "Session Duration (in seconds)",
+			Value:   43200,
 		},
 		&cli.StringFlag{
 			Name:     "sp-id",
 			Aliases:  []string{"s"},
-			Usage:    "Google SSO SP identifier",
+			Usage:    "Service Provider ID",
 			Required: true,
-			EnvVars:  []string{"GOOGLE_SP_ID"},
+			EnvVars:  []string{"SERVICE_PROVIDER_ID"},
 		},
 		&cli.StringFlag{
 			Name:     "idp-id",
 			Aliases:  []string{"i"},
-			Usage:    "Google SP identifier",
+			Usage:    "Identity Provider ID",
 			Required: true,
-			EnvVars:  []string{"GOOGLE_IDP_ID"},
+			EnvVars:  []string{"IDENTITY_PROVIDER_ID"},
 		},
 		&cli.StringFlag{
-			Name:    "role-arn",
-			Aliases: []string{"r"},
-			Usage:   "AWS Role Arn for assuming to",
+			Name:     "role-name",
+			Aliases:  []string{"r"},
+			Usage:    "AWS Role Arn for assuming to",
+			Required: true,
 		},
-		&cli.StringFlag{
-			Name:  "saml-file",
-			Usage: "Path to file contains SAML Assertion",
-			Value: "~/.aws_google_login_cache.txt",
-		},
-		&cli.BoolFlag{
-			Name:  "no-cache",
-			Usage: "Force to re-authenticate",
-			Value: false,
+		&cli.StringSliceFlag{
+			Name:     "account-ids",
+			Aliases:  []string{"a"},
+			Usage:    "AWS Account ID (can be specified multiple times)",
+			Required: true,
 		},
 		&cli.BoolFlag{
-			Name:  "get-saml-assertion",
+			Name:  "saml-assertion",
 			Usage: "Getting SAML assertion XML",
-			Value: false,
-		},
-		&cli.BoolFlag{
-			Name:  "export",
-			Usage: "Print export line for working with aws cli",
 			Value: false,
 		},
 	}
