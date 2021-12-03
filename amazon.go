@@ -9,8 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 )
 
-const DEFAULT_SESSION_DURATION = 3600
-
 type Amazon struct {
 	SamlAssertion   string
 	SessionDuration int64
