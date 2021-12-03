@@ -32,7 +32,9 @@ func NewGoogleConfig(idpID, spID string) *Google {
 func (g *Google) Login() (string, error) {
 	SAMLResponse := ""
 
-	pw, err := playwright.Run()
+	pw, err := playwright.Run(&playwright.RunOptions{
+		Browsers: []string{"chromium"},
+	})
 	if err != nil {
 		return SAMLResponse, fmt.Errorf("unable to run playwright %v", err)
 	}
@@ -51,10 +53,6 @@ func (g *Google) Login() (string, error) {
 
 	if _, err := page.Goto(g.LoginURL()); err != nil {
 		return SAMLResponse, fmt.Errorf("could not goto: %v", err)
-	}
-
-	if err != nil {
-		return SAMLResponse, fmt.Errorf("unable to click on email field")
 	}
 
 	r := page.WaitForRequest(g.WaitURL())
